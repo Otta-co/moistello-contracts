@@ -1,0 +1,80 @@
+use soroban_sdk::{Address,Env,Vec,Map};
+use crate::types::*;
+use common::vrf;
+
+// Helper macro to safely access Vec elements
+macro_rules! vec_get {
+    ($vec:expr, $idx:expr, $err:expr) => {
+        $vec.get($idx).ok_or($err)?
+    };
+}
+
+pub fn resolve_random(env:&Env,circle:&Circle,_round:u32)->Result<Address,CircleError>{
+    let positions=vrf::shuffle_positions(env,circle.max_members);
+    let members:Vec<Member>=env.storage().persistent().get(&DataKey::Members).ok_or(CircleError::NotInitialized)?;
+    for i in 0..positions.len(){
+        let pos=positions.get(i).ok_or(CircleError::NotInitialized)?;
+        if(circle.payout_bitmap&(1u128<<pos))==0{
+            for j in 0..members.len(){
+                let m=members.get(j).ok_or(CircleError::NotInitialized)?;
+                if m.position==pos&&m.status==MEMBER_ACTIVE{return Ok(m.address);}
+            }
+        }
+    }
+    Err(CircleError::PayoutAlreadyExecuted)
+}
+
+pub fn resolve_fixed(_env:&Env,circle:&Circle,round:u32)->Result<Address,CircleError>{
+    let pos=(round%circle.max_members)as u32;
+    let members:Vec<Member>=_env.storage().persistent().get(&DataKey::Members).ok_or(CircleError::NotInitialized)?;
+    for i in 0..members.len(){
+        let m=members.get(i).ok_or(CircleError::NotInitialized)?;
+        if m.position==pos&&m.status==MEMBER_ACTIVE{return Ok(m.address);}
+    }
+    Err(CircleError::NotMember)
+}
+
+pub fn resolve_auction(env:&Env,_circle:&Circle,round:u32)->Result<(Address,u32),CircleError>{
+    let bids:Vec<AuctionBid>=env.storage().persistent().get(&DataKey::Bids).unwrap_or_else(||Vec::new(env));
+    let mut min_bps:u32=10000;
+    let mut winner:Option<AuctionBid>=None;
+    for i in 0..bids.len(){
+        let b=bids.get(i).ok_or(CircleError::NotInitialized)?;
+        if b.round==round&&b.discount_bips<=min_bps{min_bps=b.discount_bips;winner=Some(b);}
+    }
+    winner.map(|b|(b.bidder,b.discount_bips)).ok_or(CircleError::VoteQuorumNotMet)
+}
+
+pub fn resolve_vote(env:&Env,_circle:&Circle,round:u32)->Result<Address,CircleError>{
+    let votes:Vec<VoteEntry>=env.storage().persistent().get(&DataKey::Votes).unwrap_or_else(||Vec::new(env));
+    let active=count_active(env)?;
+    let quorum=(active/2)+1;
+    let mut tally:Map<Address,u32>=Map::new(env);
+    let mut match_count:u32=0;
+    for i in 0..votes.len(){
+        let v=votes.get(i).ok_or(CircleError::NotInitialized)?;
+        if v.round==round{
+            match_count=match_count.checked_add(1).ok_or(CircleError::InvalidAmount)?;
+            let c=tally.get(v.vote_for.clone()).unwrap_or(0);
+            tally.set(v.vote_for.clone(),c.checked_add(1).ok_or(CircleError::InvalidAmount)?);
+        }
+    }
+    if match_count<quorum{return Err(CircleError::VoteQuorumNotMet);}
+    let mut best_addr:Option<Address>=None;
+    let mut best_count:u32=0;
+    for(addr,count)in tally.iter(){
+        if count>best_count{best_count=count;best_addr=Some(addr);}
+    }
+    best_addr.ok_or(CircleError::VoteQuorumNotMet)
+}
+
+fn count_active(env:&Env)->Result<u32,CircleError>{
+    let members:Vec<Member>=env.storage().persistent().get(&DataKey::Members).ok_or(CircleError::NotInitialized)?;
+    let mut c:u32=0;
+    for i in 0..members.len(){
+        if members.get(i).ok_or(CircleError::NotInitialized)?.status==MEMBER_ACTIVE{
+            c=c.checked_add(1).ok_or(CircleError::InvalidAmount)?;
+        }
+    }
+    Ok(c)
+}

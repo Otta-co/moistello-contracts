@@ -1,0 +1,85 @@
+#!/bin/bash
+set -e
+
+NETWORK="${1:-testnet}"
+echo "=== Moistello Contract Deployment — $NETWORK ==="
+
+# Load config
+if [ "$NETWORK" = "testnet" ]; then
+    RPC_URL="https://soroban-testnet.stellar.org"
+    NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+    ADMIN_PUBLIC="GAX23V3WWDPPR5WRER3KTEUTDLSCGZYMSJY5FDRRKKCIQ4JADF5T27RC"
+    ADMIN_SECRET="SDDBM2MKQSV2ZPEDKTSI3IWNEUSJU5DAWW5NSRWNKJ4FABXSYGYW72FO"
+else
+    RPC_URL="https://soroban.stellar.org"
+    NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+    ADMIN_PUBLIC="${MAINNET_ADMIN_PUBLIC_KEY}"
+    ADMIN_SECRET="${MAINNET_ADMIN_SECRET_KEY}"
+    if [ -z "$ADMIN_PUBLIC" ] || [ -z "$ADMIN_SECRET" ]; then
+        echo "ERROR: Set MAINNET_ADMIN_PUBLIC_KEY and MAINNET_ADMIN_SECRET_KEY environment variables"
+        exit 1
+    fi
+fi
+
+IDENTITY="moistello-deployer"
+echo "Configuring identity: $IDENTITY"
+soroban config identity generate "$IDENTITY" \
+    --rpc-url "$RPC_URL" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    --secret-key "$ADMIN_SECRET" 2>/dev/null || \
+soroban config identity address "$IDENTITY" 2>/dev/null
+
+WASM_DIR="target/wasm32v1-none/release"
+
+# Deploy contracts in dependency order
+echo ""
+echo "1/5 Deploying Circle Factory..."
+FACTORY_ID=$(soroban contract deploy \
+    --wasm "$WASM_DIR/circle_factory.optimized.wasm" \
+    --source "$IDENTITY" \
+    --network "$NETWORK")
+echo "   Factory: $FACTORY_ID"
+
+echo "2/5 Deploying Circle (base template)..."
+CIRCLE_WASM_HASH=$(soroban contract install \
+    --wasm "$WASM_DIR/circle.optimized.wasm" \
+    --source "$IDENTITY" \
+    --network "$NETWORK")
+echo "   Circle WASM Hash: $CIRCLE_WASM_HASH"
+
+echo "3/5 Deploying Reputation Registry..."
+REP_ID=$(soroban contract deploy \
+    --wasm "$WASM_DIR/reputation_registry.optimized.wasm" \
+    --source "$IDENTITY" \
+    --network "$NETWORK")
+echo "   Reputation: $REP_ID"
+
+echo "4/5 Deploying Governance Token..."
+TOKEN_ID=$(soroban contract deploy \
+    --wasm "$WASM_DIR/governance_token.optimized.wasm" \
+    --source "$IDENTITY" \
+    --network "$NETWORK")
+echo "   Token: $TOKEN_ID"
+
+echo "5/5 Deploying Treasury..."
+TREASURY_ID=$(soroban contract deploy \
+    --wasm "$WASM_DIR/treasury.optimized.wasm" \
+    --source "$IDENTITY" \
+    --network "$NETWORK")
+echo "   Treasury: $TREASURY_ID"
+
+echo ""
+echo "=== Deployment Complete ==="
+echo "Network: $NETWORK"
+echo "RPC: $RPC_URL"
+echo ""
+echo "Contract IDs:"
+echo "  Circle Factory:     $FACTORY_ID"
+echo "  Circle WASM Hash:   $CIRCLE_WASM_HASH"
+echo "  Reputation Registry:$REP_ID"
+echo "  Governance Token:   $TOKEN_ID"
+echo "  Treasury:           $TREASURY_ID"
+echo ""
+echo "Admin Public Key: $ADMIN_PUBLIC"
+echo ""
+echo "Save these IDs to config/config.yaml in the backend."

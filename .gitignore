@@ -1,0 +1,7 @@
+/target/
+**/*.rs.bk
+*.pem
+*.wasm
+*.optimized.wasm
+.env
+config/keys/

@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "packages/common",
+    "packages/circle-factory",
+    "packages/circle",
+    "packages/reputation-registry",
+    "packages/governance-token",
+    "packages/treasury",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.91"
+
+[workspace.dependencies]
+soroban-sdk = "26.0.0"
+soroban-token-sdk = "26.0.0"
+
+[workspace.dev-dependencies]
+soroban-sdk = { version = "26.0.0", features = ["testutils"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
