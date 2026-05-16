@@ -2,13 +2,6 @@ use soroban_sdk::{Address,Env,Vec,Map};
 use crate::types::*;
 use common::vrf;
 
-// Helper macro to safely access Vec elements
-macro_rules! vec_get {
-    ($vec:expr, $idx:expr, $err:expr) => {
-        $vec.get($idx).ok_or($err)?
-    };
-}
-
 pub fn resolve_random(env:&Env,circle:&Circle,_round:u32)->Result<Address,CircleError>{
     let positions=vrf::shuffle_positions(env,circle.max_members);
     let members:Vec<Member>=env.storage().persistent().get(&DataKey::Members).ok_or(CircleError::NotInitialized)?;

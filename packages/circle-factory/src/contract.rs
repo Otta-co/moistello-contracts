@@ -1,15 +1,16 @@
 use soroban_sdk::{Address, BytesN, Env, Vec};
 use crate::types::*; use common::pause;
-pub fn init(env: &Env, admin: &Address, fee_bps: i128, circle_wasm_hash: &BytesN<32>) {
-    if fee_bps < 0 || fee_bps > 10_000 { panic!("invalid fee_bps"); }
+pub fn init(env: &Env, admin: &Address, fee_bps: i128, circle_wasm_hash: &BytesN<32>) -> Result<(), FactoryError> {
+    admin.require_auth();
+    if fee_bps < 0 || fee_bps > 10_000 { return Err(FactoryError::InvalidFeeBps); }
     env.storage().instance().set(&DataKey::Admin, admin);
     env.storage().instance().set(&DataKey::FeeConfig, &FeeConfig { fee_bps, updated_at: env.ledger().timestamp(), updated_by: admin.clone() });
     env.storage().instance().set(&DataKey::WasmHash, circle_wasm_hash);
     env.storage().instance().set(&DataKey::CircleCount, &0u32);
-    env.storage().instance().set(&DataKey::Paused, &false);
+    Ok(())
 }
 pub fn deploy_circle(env: &Env, config: &CircleConfig) -> Result<Address, FactoryError> {
-    if env.storage().instance().get(&DataKey::Paused).unwrap_or(false) { return Err(FactoryError::ContractPaused); }
+    pause::when_not_paused(env).map_err(|_| FactoryError::ContractPaused)?;
     config.organizer.require_auth();
     if config.max_members < 2 || config.contribution_amount <= 0 || config.total_rounds == 0 || config.payout_type > 3 { return Err(FactoryError::InvalidConfig); }
     let wh: BytesN<32> = env.storage().instance().get(&DataKey::WasmHash).ok_or(FactoryError::WasmHashNotSet)?;
@@ -28,7 +29,7 @@ pub fn get_circles(env: &Env) -> CircleRegistry { CircleRegistry { circles: env.
 pub fn get_circle_count(env: &Env) -> u32 { env.storage().instance().get(&DataKey::CircleCount).unwrap_or(0) }
 pub fn get_fee_config(env: &Env) -> FeeConfig { env.storage().instance().get(&DataKey::FeeConfig).unwrap_or_else(|| FeeConfig { fee_bps:0, updated_at:0, updated_by: env.current_contract_address() }) }
 pub fn set_fee_config(env: &Env, admin: &Address, fee_bps: i128) -> Result<(), FactoryError> {
-    if env.storage().instance().get(&DataKey::Paused).unwrap_or(false) { return Err(FactoryError::ContractPaused); }
+    pause::when_not_paused(env).map_err(|_| FactoryError::ContractPaused)?;
     admin.require_auth();
     let s: Address = env.storage().instance().get(&DataKey::Admin).ok_or(FactoryError::NotInitialized)?;
     if admin != &s { return Err(FactoryError::Unauthorized); }

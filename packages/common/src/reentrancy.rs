@@ -1,6 +1,6 @@
-use soroban_sdk::{Env, Symbol, contracterror};
+use soroban_sdk::{Env, Symbol, contracterror, symbol_short};
 
-const REENTRANCY_KEY: Symbol = Symbol::short("reent");
+const REENTRANCY_KEY: Symbol = symbol_short!("reent");
 
 /// ReentrancyGuard prevents recursive calls to the same function.
 /// Critical for financial contracts to prevent reentrancy attacks.

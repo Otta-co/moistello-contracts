@@ -3,7 +3,7 @@ mod types; mod contract; mod payout; #[cfg(test)] mod test;
 use soroban_sdk::{contract,contractimpl,Address,BytesN,Env};
 #[contract]pub struct Circle;
 #[contractimpl]impl Circle{
-    pub fn init(env:Env,admin:Address,factory:Address,config:types::CircleConfig){contract::init(&env,&admin,&factory,&config);}
+    pub fn init(env:Env,admin:Address,factory:Address,config:types::CircleConfig)->Result<(),types::CircleError>{contract::init(&env,&admin,&factory,&config)}
     pub fn join(env:Env,member:Address)->Result<(),types::CircleError>{contract::join(&env,&member)}
     pub fn contribute(env:Env,member:Address,amount:i128,round:u32)->Result<(),types::CircleError>{contract::contribute(&env,&member,amount,round)}
     pub fn trigger_payout(env:Env,caller:Address,round:u32)->Result<(),types::CircleError>{contract::trigger_payout(&env,&caller,round)}
@@ -16,6 +16,6 @@ use soroban_sdk::{contract,contractimpl,Address,BytesN,Env};
     pub fn get_status(env:Env)->types::Circle{contract::get_status(&env)}
     pub fn get_members(env:Env)->soroban_sdk::Vec<types::Member>{contract::get_members(&env)}
     pub fn get_contributions(env:Env,member:Address)->soroban_sdk::Vec<types::Contribution>{contract::get_contributions(&env,&member)}
-    pub fn pause(env:Env,admin:Address)->Result<(),types::CircleError>{contract::pause(&env,&admin)}
-    pub fn unpause(env:Env,admin:Address)->Result<(),types::CircleError>{contract::unpause(&env,&admin)}
+    pub fn pause_circle(env:Env,admin:Address)->Result<(),types::CircleError>{contract::pause_circle(&env,&admin)}
+    pub fn unpause_circle(env:Env,admin:Address)->Result<(),types::CircleError>{contract::unpause_circle(&env,&admin)}
 }
