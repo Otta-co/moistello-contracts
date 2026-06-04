@@ -5,9 +5,7 @@ members = [
     "packages/circle-factory",
     "packages/circle",
     "packages/reputation-registry",
-    "packages/governance-token",
     "packages/treasury",
-    "packages/governance",
 ]
 
 [workspace.package]
